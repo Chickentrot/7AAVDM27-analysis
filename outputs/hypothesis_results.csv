@@ -1,0 +1,4 @@
+Hypothesis,Method,r,df,p,CI_lower,CI_upper,Significant
+H1 (SMuse → TravelIntent),PEARSON,0.323,118,3e-4,0.153,0.475,TRUE
+H2 (Openness → TravelIntent),SPEARMAN,0.318,NA,4e-4,NA,NA,TRUE
+H3 (Extraversion → TravelIntent),SPEARMAN,0.008,NA,0.9283,NA,NA,FALSE
