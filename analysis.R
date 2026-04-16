@@ -5,17 +5,18 @@
 # ============================================================
 
 # ── Section 1: Setup ─────────────────────────────────────────
-required_packages <- c("tidyverse", "psych", "corrplot")
+required_packages <- c("tidyverse", "psych", "corrplot", "here")
 new_packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
 if (length(new_packages)) install.packages(new_packages, repos = "https://cran.rstudio.com/")
 
 library(tidyverse)
 library(psych)
 library(corrplot)
+library(here)
 
-dir.create("outputs", showWarnings = FALSE)
+dir.create(here("outputs"), showWarnings = FALSE)
 
-df <- read_csv("data/data.csv", show_col_types = FALSE)
+df <- read_csv(here("data", "data.csv"), show_col_types = FALSE)
 cat("Data loaded:", nrow(df), "rows,", ncol(df), "columns\n\n")
 
 
@@ -39,15 +40,31 @@ cat("Reverse scoring applied: Q11_r, Q13_r, Q15_r, Q17_r, Q19_r = 6 - raw\n\n")
 
 
 # ── Section 3: Composite Scores ──────────────────────────────
+# NA threshold: if a respondent has NA on MORE than 1 item in a composite,
+# their composite score is set to NA rather than imputed from partial items.
+safe_rowmeans <- function(df_sub, label, max_na = 1) {
+  na_count <- rowSums(is.na(df_sub))
+  result   <- rowMeans(df_sub, na.rm = TRUE)
+  bad      <- na_count > max_na
+  if (any(bad)) {
+    warning(sprintf("%d row(s) in %s exceeded %d NA threshold — set to NA.",
+                    sum(bad), label, max_na))
+    cat(sprintf("  WARNING: %d row(s) in %-20s had >%d missing items → composite = NA\n",
+                sum(bad), label, max_na))
+    result[bad] <- NA_real_
+  }
+  result
+}
+
 df <- df %>%
   mutate(
-    SMuse             = rowMeans(select(., Q1, Q2, Q3, Q4),              na.rm = TRUE),
-    TravelIntent      = rowMeans(select(., Q5, Q6, Q7, Q8, Q9),          na.rm = TRUE),
-    Openness          = rowMeans(select(., Q10, Q11_r),                   na.rm = TRUE),
-    Extraversion      = rowMeans(select(., Q12, Q13_r),                   na.rm = TRUE),
-    Agreeableness     = rowMeans(select(., Q14, Q15_r),                   na.rm = TRUE),
-    Conscientiousness = rowMeans(select(., Q16, Q17_r),                   na.rm = TRUE),
-    Neuroticism       = rowMeans(select(., Q18, Q19_r),                   na.rm = TRUE)
+    SMuse             = safe_rowmeans(pick(Q1, Q2, Q3, Q4),         "SMuse"),
+    TravelIntent      = safe_rowmeans(pick(Q5, Q6, Q7, Q8, Q9),     "TravelIntent"),
+    Openness          = safe_rowmeans(pick(Q10, Q11_r),              "Openness"),
+    Extraversion      = safe_rowmeans(pick(Q12, Q13_r),              "Extraversion"),
+    Agreeableness     = safe_rowmeans(pick(Q14, Q15_r),              "Agreeableness"),
+    Conscientiousness = safe_rowmeans(pick(Q16, Q17_r),              "Conscientiousness"),
+    Neuroticism       = safe_rowmeans(pick(Q18, Q19_r),              "Neuroticism")
   )
 
 composites <- c("SMuse", "TravelIntent", "Openness", "Extraversion",
@@ -69,7 +86,7 @@ desc_stats <- df %>%
   pivot_longer(everything(), names_to = "Variable", values_to = "Value") %>%
   group_by(Variable) %>%
   summarise(
-    n    = n(),
+    n    = sum(!is.na(Value)),
     Mean = round(mean(Value, na.rm = TRUE), 2),
     SD   = round(sd(Value,   na.rm = TRUE), 2),
     Min  = round(min(Value,  na.rm = TRUE), 2),
@@ -82,111 +99,128 @@ cat("── Descriptive Statistics ───────────────
 print(as.data.frame(desc_stats), row.names = FALSE)
 cat("\n")
 
-write_csv(desc_stats, "outputs/descriptives.csv")
+write_csv(desc_stats, here("outputs", "descriptives.csv"))
 cat("Descriptives exported to outputs/descriptives.csv\n\n")
 
 
-# ── Section 5: Normality Tests (Shapiro-Wilk) ────────────────
-cat("── Shapiro-Wilk Normality Tests ────────────────────────\n")
+# ── Section 5: Shapiro-Wilk (descriptive only) ───────────────
+# Shapiro-Wilk results are reported here for transparency but do NOT
+# determine the correlation method. All six hypothesis tests use
+# Spearman's rho (see Section 6 for justification).
+cat("── Shapiro-Wilk Normality Tests (descriptive only) ─────\n")
+cat("   Note: method selection is NOT based on these results.\n\n")
 
-sw_results <- setNames(
-  lapply(composites, function(var) {
-    test <- shapiro.test(df[[var]])
-    cat(sprintf("  %-20s W = %.4f, p = %.4f  →  %s\n",
-                var, test$statistic, test$p.value,
-                ifelse(test$p.value >= 0.05, "Normal (Pearson OK)", "Non-normal (use Spearman)")))
-    list(var = var, W = test$statistic, p = test$p.value, normal = test$p.value >= 0.05)
-  }),
-  composites
+for (var in composites) {
+  x    <- na.omit(df[[var]])
+  test <- shapiro.test(x)
+  cat(sprintf("  %-20s W = %.4f, p = %.4f\n", var, test$statistic, test$p.value))
+}
+cat("\n")
+
+
+# ── Section 6: Correlation Tests (Spearman throughout) ───────
+# All six hypotheses are tested with Spearman's rho. Justification:
+#   (1) All composites are means of ordinal Likert items — the resulting
+#       scale is at best interval-like, and parametric assumptions are not
+#       guaranteed even when Shapiro-Wilk does not reject normality.
+#   (2) Spearman is the standard recommendation for Likert-derived
+#       composites in social-science research (Field, 2018).
+#   (3) Using a single consistent method avoids post-hoc method-switching
+#       that can inflate Type I error.
+# Note: 95% CIs for Spearman's rho require bootstrapping and are not
+# reported here. Bootstrap CIs can be added via the boot package if needed.
+#
+# Multiple comparisons: six simultaneous tests are conducted (H1–H6).
+# Holm's sequential Bonferroni correction is applied to control the
+# family-wise error rate. Both raw and Holm-adjusted p-values are reported.
+
+# Hypothesis metadata — direction label used in output and CSV
+hyp_pairs <- list(
+  list(x = "SMuse",             label = "H1 (SMuse → TravelIntent)",
+       direction = "Directional (positive)"),
+  list(x = "Openness",          label = "H2 (Openness → TravelIntent)",
+       direction = "Directional (positive)"),
+  list(x = "Extraversion",      label = "H3 (Extraversion → TravelIntent)",
+       direction = "Directional (positive)"),
+  list(x = "Agreeableness",     label = "H4 (Agreeableness → TravelIntent)",
+       direction = "Exploratory (two-tailed, no directional prediction)"),
+  list(x = "Conscientiousness", label = "H5 (Conscientiousness → TravelIntent)",
+       direction = "Exploratory (two-tailed, no directional prediction)"),
+  list(x = "Neuroticism",       label = "H6 (Neuroticism → TravelIntent)",
+       direction = "Exploratory (two-tailed, no directional prediction)")
 )
-cat("\n")
 
-# Choose Pearson or Spearman per hypothesis based on normality of both variables
-cor_method <- function(x_var) {
-  ifelse(sw_results[[x_var]]$normal & sw_results[["TravelIntent"]]$normal,
-         "pearson", "spearman")
+# Run all six tests
+test_results <- list()
+for (hp in hyp_pairs) {
+  test_results[[hp$x]] <- cor.test(df[[hp$x]], df$TravelIntent,
+                                   method = "spearman", exact = FALSE)
 }
 
-methods <- setNames(lapply(composites[composites != "TravelIntent"], cor_method),
-                    composites[composites != "TravelIntent"])
+# Apply Holm correction across all six raw p-values
+p_raw  <- sapply(hyp_pairs, function(hp) test_results[[hp$x]]$p.value)
+p_holm <- p.adjust(p_raw, method = "holm")
 
-cat("  Correlation methods selected:\n")
-for (h in seq_along(methods)) {
-  cat(sprintf("    H%d (%s): %s\n", h, names(methods)[h], toupper(methods[[h]])))
+cat("── Hypothesis Tests (Spearman's rho, Holm-corrected) ───\n")
+cat("   Six simultaneous tests — Holm correction applied.\n")
+cat("   H1–H3: directional (positive association predicted).\n")
+cat("   H4–H6: exploratory (two-tailed, no directional prediction).\n\n")
+
+# APA format helper — Spearman only, no CI reported
+r_fmt <- function(v) {
+  ifelse(v >= 0,
+         paste0( ".", sprintf("%02d", abs(round(v * 100)))),
+         paste0("-.", sprintf("%02d", abs(round(v * 100)))))
 }
-cat("\n")
 
+p_fmt <- function(p) {
+  if      (p < .001) "< .001"
+  else if (p >= .9995) "= 1.000"
+  else sprintf("= .%03d", round(p * 1000))
+}
 
-# ── Section 6: Correlation Tests & APA Reporting ─────────────
+result_rows <- list()
 
-apa_report <- function(test, hypothesis, method) {
-  r      <- as.numeric(test$estimate)
-  p      <- test$p.value
-  df_val <- if (!is.null(test$parameter)) as.integer(test$parameter) else NA_integer_
-  ci     <- test$conf.int
+for (i in seq_along(hyp_pairs)) {
+  hp     <- hyp_pairs[[i]]
+  t      <- test_results[[hp$x]]
+  r      <- as.numeric(t$estimate)
+  p_r    <- p_raw[i]
+  p_h    <- p_holm[i]
 
-  r_label <- ifelse(method == "pearson", "r", "r_s")
-  p_str   <- ifelse(p < .001, "< .001", sprintf("= .%03d", round(p * 1000)))
-  r_fmt   <- function(v) ifelse(v >= 0,
-                                 paste0( ".", sprintf("%02d", abs(round(v * 100)))),
-                                 paste0("-.", sprintf("%02d", abs(round(v * 100)))))
+  sig_raw  <- ifelse(p_r < .05, "SIGNIFICANT", "non-significant")
+  sig_holm <- ifelse(p_h < .05, "SIGNIFICANT after Holm", "non-significant after Holm")
 
-  if (!is.null(ci) && !anyNA(ci)) {
-    apa <- sprintf("%s(%d) = %s, p %s, 95%% CI [%s, %s]",
-                   r_label, df_val, r_fmt(r), p_str, r_fmt(ci[1]), r_fmt(ci[2]))
-  } else {
-    apa <- sprintf("%s = %s, p %s (95%% CI not available for Spearman)",
-                   r_label, r_fmt(r), p_str)
-  }
+  apa <- sprintf("r_s = %s, p_raw %s, p_Holm %s",
+                 r_fmt(r), p_fmt(p_r), p_fmt(p_h))
 
-  sig <- ifelse(p < .05, "SIGNIFICANT", "non-significant")
-  cat(sprintf("  %s:\n    %s  [%s]\n\n", hypothesis, apa, sig))
+  cat(sprintf("  %s\n    %s\n    [%s | %s]\n    Direction: %s\n\n",
+              hp$label, apa, sig_raw, sig_holm, hp$direction))
 
-  data.frame(
-    Hypothesis  = hypothesis,
-    Method      = toupper(method),
-    r           = round(r, 3),
-    df          = df_val,
-    p           = round(p, 4),
-    CI_lower    = if (!is.null(ci) && !anyNA(ci)) round(ci[1], 3) else NA_real_,
-    CI_upper    = if (!is.null(ci) && !anyNA(ci)) round(ci[2], 3) else NA_real_,
-    Significant = p < .05,
-    stringsAsFactors = FALSE
+  result_rows[[i]] <- data.frame(
+    Hypothesis          = hp$label,
+    Method              = "SPEARMAN",
+    r                   = round(r, 3),
+    p_raw               = round(p_r, 4),
+    p_holm              = round(p_h, 4),
+    Significant_raw     = p_r < .05,
+    Significant_holm    = p_h < .05,
+    Direction_predicted = hp$direction,
+    stringsAsFactors    = FALSE
   )
 }
 
-cat("── Hypothesis Tests ────────────────────────────────────\n\n")
-
-hyp_pairs <- list(
-  list(x = "SMuse",             label = "H1 (SMuse → TravelIntent)"),
-  list(x = "Openness",          label = "H2 (Openness → TravelIntent)"),
-  list(x = "Extraversion",      label = "H3 (Extraversion → TravelIntent)"),
-  list(x = "Agreeableness",     label = "H4 (Agreeableness → TravelIntent)"),
-  list(x = "Conscientiousness", label = "H5 (Conscientiousness → TravelIntent)"),
-  list(x = "Neuroticism",       label = "H6 (Neuroticism → TravelIntent)")
-)
-
-test_results <- list()
-result_rows  <- list()
-
-for (hp in hyp_pairs) {
-  m <- methods[[hp$x]]
-  t <- cor.test(df[[hp$x]], df$TravelIntent, method = m)
-  test_results[[hp$x]] <- t
-  result_rows[[hp$x]]  <- apa_report(t, hp$label, m)
-}
-
 results_table <- bind_rows(result_rows)
-write_csv(results_table, "outputs/hypothesis_results.csv")
+write_csv(results_table, here("outputs", "hypothesis_results.csv"))
 cat("Results exported to outputs/hypothesis_results.csv\n\n")
 
 
 # ── Section 7: Visualisations ────────────────────────────────
 
 # 7a — Correlation matrix heatmap (all 7 composites)
-cor_mat <- cor(df[, composites], use = "complete.obs")
+cor_mat <- cor(df[, composites], use = "complete.obs", method = "spearman")
 
-png("outputs/correlation_matrix.png", width = 820, height = 720, res = 110)
+png(here("outputs", "correlation_matrix.png"), width = 820, height = 720, res = 110)
 corrplot(cor_mat,
          method      = "color",
          type        = "upper",
@@ -195,7 +229,7 @@ corrplot(cor_mat,
          tl.col      = "black",
          tl.srt      = 45,
          col         = colorRampPalette(c("#4575b4", "white", "#d73027"))(200),
-         title       = "Correlation Matrix — Composite Scales",
+         title       = "Spearman Correlation Matrix — Composite Scales",
          mar         = c(0, 0, 2, 0))
 dev.off()
 cat("Saved: outputs/correlation_matrix.png\n")
@@ -208,10 +242,11 @@ theme_study <- theme_minimal(base_size = 12) +
     panel.grid.minor = element_blank()
   )
 
-# Helper: scatterplot with regression line + r/p annotation
-scatter_plot <- function(data, x_var, y_var, x_lab, y_lab, title, r_val, p_val) {
-  p_str <- ifelse(p_val < .001, "< .001", paste0("= ", sprintf("%.3f", p_val)))
-  label <- sprintf("r = %.2f, p %s", r_val, p_str)
+# Scatterplot helper — shows r_s and both p-values
+scatter_plot <- function(data, x_var, y_var, x_lab, y_lab, title, r_val, p_r, p_h) {
+  p_r_str <- ifelse(p_r < .001, "< .001", sprintf("= %.3f", p_r))
+  p_h_str <- ifelse(p_h < .001, "< .001", sprintf("= %.3f", p_h))
+  label   <- sprintf("r_s = %.2f\np_raw %s  p_Holm %s", r_val, p_r_str, p_h_str)
 
   ggplot(data, aes(x = .data[[x_var]], y = .data[[y_var]])) +
     geom_jitter(alpha = 0.45, width = 0.08, height = 0.08,
@@ -219,7 +254,8 @@ scatter_plot <- function(data, x_var, y_var, x_lab, y_lab, title, r_val, p_val) 
     geom_smooth(method = "lm", se = TRUE, colour = "#d73027",
                 fill = "#f4a582", linewidth = 0.9) +
     annotate("text", x = Inf, y = -Inf, label = label,
-             hjust = 1.1, vjust = -0.8, size = 3.8, colour = "grey30") +
+             hjust = 1.05, vjust = -0.4, size = 3.4, colour = "grey30",
+             lineheight = 1.3) +
     labs(title = title, x = x_lab, y = y_lab) +
     scale_x_continuous(breaks = 1:5) +
     scale_y_continuous(breaks = 1:5) +
@@ -242,37 +278,60 @@ scatter_specs <- list(
        title = "H6: Neuroticism and Travel Intention",           file = "H6_scatterplot.png")
 )
 
-for (sp in scatter_specs) {
+for (i in seq_along(scatter_specs)) {
+  sp   <- scatter_specs[[i]]
   t    <- test_results[[sp$x]]
-  plot <- scatter_plot(df, sp$x, "TravelIntent",
+  p    <- scatter_plot(df, sp$x, "TravelIntent",
                        sp$x_lab, "Travel Intention (TravelIntent)",
                        sp$title,
-                       as.numeric(t$estimate), t$p.value)
-  out_path <- file.path("outputs", sp$file)
-  ggsave(out_path, plot, width = 6, height = 5, dpi = 150)
-  cat("Saved:", out_path, "\n")
+                       as.numeric(t$estimate), p_raw[i], p_holm[i])
+  out_path <- here("outputs", sp$file)
+  ggsave(out_path, p, width = 6, height = 5, dpi = 150)
+  cat("Saved:", sp$file, "\n")
 }
 cat("\n")
 
 
-# ── Section 8: Reliability (Cronbach's Alpha) ────────────────
-cat("── Cronbach's Alpha (α > 0.70 acceptable) ──────────────\n")
+# ── Section 8: Reliability ───────────────────────────────────
+# Cronbach's alpha is used for multi-item scales (SMuse: 4 items,
+# TravelIntent: 5 items) where alpha is an appropriate measure.
+#
+# For the five 2-item BFI composites, Spearman-Brown (SB) is used instead.
+# Alpha is mathematically identical to SB for 2-item scales only when items
+# have equal variance, which is not guaranteed. SB = (2*r) / (1 + r) where
+# r is the inter-item Pearson correlation. Threshold: SB > 0.70 acceptable.
 
+cat("── Reliability ─────────────────────────────────────────\n\n")
+
+# Cronbach's alpha — SMuse and TravelIntent only
+cat("  Cronbach's alpha (multi-item scales, α > 0.70 acceptable):\n")
 alpha_scales <- list(
-  SMuse             = df %>% select(Q1, Q2, Q3, Q4),
-  TravelIntent      = df %>% select(Q5, Q6, Q7, Q8, Q9),
-  Openness          = df %>% select(Q10, Q11_r),
-  Extraversion      = df %>% select(Q12, Q13_r),
-  Agreeableness     = df %>% select(Q14, Q15_r),
-  Conscientiousness = df %>% select(Q16, Q17_r),
-  Neuroticism       = df %>% select(Q18, Q19_r)
+  SMuse        = df %>% select(Q1, Q2, Q3, Q4),
+  TravelIntent = df %>% select(Q5, Q6, Q7, Q8, Q9)
 )
-
 for (scale_name in names(alpha_scales)) {
   a         <- psych::alpha(alpha_scales[[scale_name]], warnings = FALSE)
   alpha_val <- a$total$raw_alpha
-  flag      <- ifelse(alpha_val >= 0.70, "✓ acceptable", "✗ below threshold — interpret with caution")
-  cat(sprintf("  %-20s α = %.3f  %s\n", scale_name, alpha_val, flag))
+  flag      <- ifelse(alpha_val >= 0.70, "✓ acceptable", "✗ below threshold")
+  cat(sprintf("    %-16s α = %.3f  %s\n", scale_name, alpha_val, flag))
+}
+
+cat("\n  Spearman-Brown coefficient (2-item BFI scales, SB > 0.70 acceptable):\n")
+cat("  [CIs for Spearman-Brown require bootstrapping and are not reported here.]\n")
+
+sb_scales <- list(
+  Openness          = c("Q10",  "Q11_r"),
+  Extraversion      = c("Q12",  "Q13_r"),
+  Agreeableness     = c("Q14",  "Q15_r"),
+  Conscientiousness = c("Q16",  "Q17_r"),
+  Neuroticism       = c("Q18",  "Q19_r")
+)
+for (scale_name in names(sb_scales)) {
+  items <- sb_scales[[scale_name]]
+  r_ii  <- cor(df[[items[1]]], df[[items[2]]], use = "complete.obs")
+  sb    <- (2 * r_ii) / (1 + r_ii)
+  flag  <- ifelse(sb >= 0.70, "✓ acceptable", "✗ below threshold — interpret with caution")
+  cat(sprintf("    %-20s r_ii = %.3f  SB = %.3f  %s\n", scale_name, r_ii, sb, flag))
 }
 
 cat("\n── Analysis complete. All outputs saved to outputs/ ────\n")
