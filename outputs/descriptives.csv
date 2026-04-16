@@ -1,5 +1,8 @@
 Variable,n,Mean,SD,Min,Max
-SMuse,120,2.99,0.83,1,5
-TravelIntent,120,2.95,0.76,1.25,5
-Openness,120,3.03,1.01,1,5
-Extraversion,120,2.95,0.93,1,5
+SMuse,120,2.96,0.73,1.25,4.75
+TravelIntent,120,2.93,0.81,1.2,5
+Openness,120,3.06,0.98,1,5
+Extraversion,120,3,0.87,1,5
+Agreeableness,120,2.83,0.86,1,5
+Conscientiousness,120,2.93,0.95,1,5
+Neuroticism,120,3.05,1.02,1,5

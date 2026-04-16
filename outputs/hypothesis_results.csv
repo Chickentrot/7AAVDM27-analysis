@@ -1,4 +1,7 @@
 Hypothesis,Method,r,df,p,CI_lower,CI_upper,Significant
-H1 (SMuse → TravelIntent),PEARSON,0.323,118,3e-4,0.153,0.475,TRUE
-H2 (Openness → TravelIntent),SPEARMAN,0.318,NA,4e-4,NA,NA,TRUE
-H3 (Extraversion → TravelIntent),SPEARMAN,0.008,NA,0.9283,NA,NA,FALSE
+H1 (SMuse → TravelIntent),SPEARMAN,0.466,NA,0,NA,NA,TRUE
+H2 (Openness → TravelIntent),SPEARMAN,0.454,NA,0,NA,NA,TRUE
+H3 (Extraversion → TravelIntent),SPEARMAN,0.17,NA,0.0632,NA,NA,FALSE
+H4 (Agreeableness → TravelIntent),SPEARMAN,-0.024,NA,0.7948,NA,NA,FALSE
+H5 (Conscientiousness → TravelIntent),SPEARMAN,0.014,NA,0.8804,NA,NA,FALSE
+H6 (Neuroticism → TravelIntent),SPEARMAN,0.103,NA,0.2651,NA,NA,FALSE

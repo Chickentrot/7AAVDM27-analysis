@@ -4,49 +4,115 @@ n <- 120
 # Helper: clamp to 1–5
 clamp <- function(x) pmax(1, pmin(5, round(x)))
 
-# Demographics
-Q13 <- sample(1:4, n, replace = TRUE, prob = c(0.20, 0.45, 0.25, 0.10))
-Q14 <- sample(1:3, n, replace = TRUE, prob = c(0.40, 0.52, 0.08))
-Q15 <- sample(1:2, n, replace = TRUE, prob = c(0.90, 0.10))
+# ── Demographics (Q20–Q24) ───────────────────────────────────
+Q20 <- sample(1:5, n, replace = TRUE, prob = c(0.30, 0.40, 0.18, 0.08, 0.04)) # age: skewed young
+Q21 <- sample(1:3, n, replace = TRUE, prob = c(0.40, 0.52, 0.08))              # gender
+Q22 <- sample(1:6, n, replace = TRUE, prob = c(0.55, 0.15, 0.10, 0.10, 0.05, 0.05)) # occupation
+Q23 <- sample(1:4, n, replace = TRUE, prob = c(0.15, 0.35, 0.35, 0.15)) # travel frequency
+Q24 <- sample(1:2, n, replace = TRUE, prob = c(0.70, 0.30)) # prior SM-influenced visit
 
-# Latent factors (standardised)
-lat_SM   <- rnorm(n)        # social media use latent
-lat_TI   <- rnorm(n)        # travel intention latent
-lat_Open <- rnorm(n)        # openness latent
-lat_Ext  <- rnorm(n)        # extraversion latent
+# ── Independent latent factors ───────────────────────────────
+lat_SM    <- rnorm(n)
+lat_Open  <- rnorm(n)
+lat_Ext   <- rnorm(n)
+lat_Agree <- rnorm(n)
+lat_Consc <- rnorm(n)
+lat_Neur  <- rnorm(n)
+lat_resid <- rnorm(n)
 
-# H1: r ≈ 0.45 between SMuse and TravelIntent
-lat_TI <- 0.45 * lat_SM + sqrt(1 - 0.45^2) * lat_TI
+# ── TravelIntent latent: build to target correlations ────────
+# H1 (SMuse):           r ≈ 0.40  → weight 0.40
+# H2 (Openness):        r ≈ 0.40  → weight 0.40
+# H3 (Extraversion):    borderline (p ≈ .07) → weight 0.25
+# H4 (Agreeableness):   r ≈ 0.05  (non-significant) → weight 0.05
+# H5 (Conscientiousness): r ≈ 0.05
+# H6 (Neuroticism):     r ≈ 0.05
+# sum_sq = 0.40^2+0.40^2+0.28^2+3*0.05^2 = 0.16+0.16+0.0784+0.0075 = 0.4059, resid = sqrt(0.594)
 
-# H2: r ≈ 0.35 between Openness and TravelIntent (partially through lat_TI)
-lat_TI <- lat_TI + 0.20 * lat_Open   # modest additional boost
-lat_TI <- lat_TI / sd(lat_TI)         # re-standardise
+lat_TI <- 0.40 * lat_SM +
+          0.40 * lat_Open +
+          0.25 * lat_Ext +
+          0.05 * lat_Agree +
+          0.05 * lat_Consc +
+          0.05 * lat_Neur +
+          sqrt(0.6100) * lat_resid
+lat_TI <- lat_TI / sd(lat_TI)   # standardise
 
-# H3: extraversion near-zero correlation with TravelIntent (r ≈ 0.10)
-lat_TI <- lat_TI + 0.10 * lat_Ext
-lat_TI <- lat_TI / sd(lat_TI)
+# ── Item generators ──────────────────────────────────────────
+# Forward item: high latent → high raw score
+item_fwd <- function(lat, noise_sd = 0.55)
+  clamp(round(3 + 0.8 * lat + rnorm(n, 0, noise_sd)))
 
-# Manifest items: scale latent to ~mean 3, sd 0.8
-make_items <- function(lat, n_items, noise_sd = 0.6) {
-  lapply(1:n_items, function(i) clamp(round(3 + 0.8 * lat + rnorm(n, 0, noise_sd))))
-}
+# Reverse item: stored as raw survey response (high latent → LOW raw score)
+# analysis.R will recover: item_r = 6 - raw
+item_rev <- function(lat, noise_sd = 0.55)
+  clamp(6 - round(3 + 0.8 * lat + rnorm(n, 0, noise_sd)))
 
-SM_items      <- make_items(lat_SM,   4, 0.55)
-TI_items      <- make_items(lat_TI,   4, 0.55)
-Open_items_raw <- make_items(lat_Open, 2, 0.65)
-Ext_items_raw  <- make_items(lat_Ext,  2, 0.65)
+# ── Manifest items ───────────────────────────────────────────
+# Social media use (Q1–Q4, all forward)
+Q1 <- item_fwd(lat_SM, 0.55)
+Q2 <- item_fwd(lat_SM, 0.55)
+Q3 <- item_fwd(lat_SM, 0.60)
+Q4 <- item_fwd(lat_SM, 0.55)
 
-Q1  <- SM_items[[1]];  Q2  <- SM_items[[2]]
-Q3  <- SM_items[[3]];  Q4  <- SM_items[[4]]
-Q5  <- TI_items[[1]];  Q6  <- TI_items[[2]]
-Q7  <- TI_items[[3]];  Q8  <- TI_items[[4]]
-Q9  <- Open_items_raw[[1]]
-# Q10 stored as ALREADY reverse-keyed (so high = high openness)
-# But in raw survey Q10 is negatively-worded → store raw (1–5) and let analysis.R reverse it
-Q10 <- clamp(6 - Open_items_raw[[2]])  # store as raw survey response (low raw = high openness)
-Q11 <- Ext_items_raw[[1]]
-Q12 <- clamp(6 - Ext_items_raw[[2]])   # store as raw survey response
+# Travel intention (Q5–Q9, all forward, 5 items)
+Q5 <- item_fwd(lat_TI, 0.55)
+Q6 <- item_fwd(lat_TI, 0.55)
+Q7 <- item_fwd(lat_TI, 0.60)
+Q8 <- item_fwd(lat_TI, 0.55)
+Q9 <- item_fwd(lat_TI, 0.60)
 
-df <- data.frame(Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,Q10,Q11,Q12,Q13,Q14,Q15)
+# Openness (Q10 forward, Q11 reverse-scored)
+Q10 <- item_fwd(lat_Open, 0.65)
+Q11 <- item_rev(lat_Open, 0.65)   # raw: high = low openness; analysis.R: Q11_r = 6 - Q11
+
+# Extraversion (Q12 forward, Q13 reverse-scored)
+Q12 <- item_fwd(lat_Ext, 0.65)
+Q13 <- item_rev(lat_Ext, 0.65)    # raw: high = low extraversion; analysis.R: Q13_r = 6 - Q13
+
+# Agreeableness (Q14 forward, Q15 reverse-scored)
+Q14 <- item_fwd(lat_Agree, 0.65)
+Q15 <- item_rev(lat_Agree, 0.65)
+
+# Conscientiousness (Q16 forward, Q17 reverse-scored)
+Q16 <- item_fwd(lat_Consc, 0.65)
+Q17 <- item_rev(lat_Consc, 0.65)
+
+# Neuroticism (Q18 forward, Q19 reverse-scored)
+Q18 <- item_fwd(lat_Neur, 0.65)
+Q19 <- item_rev(lat_Neur, 0.65)
+
+# ── Write CSV ────────────────────────────────────────────────
+df <- data.frame(
+  Q1,Q2,Q3,Q4,           # SMuse
+  Q5,Q6,Q7,Q8,Q9,        # TravelIntent
+  Q10,Q11,               # Openness (Q11 reverse-keyed in survey)
+  Q12,Q13,               # Extraversion (Q13 reverse-keyed)
+  Q14,Q15,               # Agreeableness (Q15 reverse-keyed)
+  Q16,Q17,               # Conscientiousness (Q17 reverse-keyed)
+  Q18,Q19,               # Neuroticism (Q19 reverse-keyed)
+  Q20,Q21,Q22,Q23,Q24    # Demographics
+)
+
 write.csv(df, "data/data.csv", row.names = FALSE)
-cat("data.csv written:", nrow(df), "rows\n")
+cat("data.csv written:", nrow(df), "rows,", ncol(df), "columns\n")
+
+# Quick sanity check on intended correlations
+source_vars <- c("Q1","Q10","Q12","Q14","Q16","Q18")
+df_check <- df
+df_check$Q11_r <- 6 - df$Q11; df_check$Q13_r <- 6 - df$Q13
+df_check$Q15_r <- 6 - df$Q15; df_check$Q17_r <- 6 - df$Q17
+df_check$Q19_r <- 6 - df$Q19
+df_check$SMuse        <- rowMeans(df_check[,c("Q1","Q2","Q3","Q4")])
+df_check$TravelIntent <- rowMeans(df_check[,c("Q5","Q6","Q7","Q8","Q9")])
+df_check$Openness     <- rowMeans(df_check[,c("Q10","Q11_r")])
+df_check$Extraversion <- rowMeans(df_check[,c("Q12","Q13_r")])
+df_check$Agreeableness    <- rowMeans(df_check[,c("Q14","Q15_r")])
+df_check$Conscientiousness <- rowMeans(df_check[,c("Q16","Q17_r")])
+df_check$Neuroticism  <- rowMeans(df_check[,c("Q18","Q19_r")])
+
+cat("\nSanity check — composite correlations with TravelIntent:\n")
+for (v in c("SMuse","Openness","Extraversion","Agreeableness","Conscientiousness","Neuroticism")) {
+  r <- cor(df_check[[v]], df_check$TravelIntent)
+  cat(sprintf("  %-20s r = %+.3f\n", v, r))
+}
