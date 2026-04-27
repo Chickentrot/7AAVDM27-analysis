@@ -1,7 +1,7 @@
-Hypothesis,Method,r,df,p,CI_lower,CI_upper,Significant
-H1 (SMuse → TravelIntent),SPEARMAN,0.466,NA,0,NA,NA,TRUE
-H2 (Openness → TravelIntent),SPEARMAN,0.454,NA,0,NA,NA,TRUE
-H3 (Extraversion → TravelIntent),SPEARMAN,0.17,NA,0.0632,NA,NA,FALSE
-H4 (Agreeableness → TravelIntent),SPEARMAN,-0.024,NA,0.7948,NA,NA,FALSE
-H5 (Conscientiousness → TravelIntent),SPEARMAN,0.014,NA,0.8804,NA,NA,FALSE
-H6 (Neuroticism → TravelIntent),SPEARMAN,0.103,NA,0.2651,NA,NA,FALSE
+Hypothesis,Method,r,p_raw,p_holm,Significant_raw,Significant_holm,Direction_predicted
+H1 (SMuse → TravelIntent),SPEARMAN,0.507,0,0,TRUE,TRUE,Directional (positive)
+H2 (Openness → TravelIntent),SPEARMAN,0.14,0.1644,0.6577,FALSE,FALSE,Directional (positive)
+H3 (Extraversion → TravelIntent),SPEARMAN,0.159,0.1133,0.5665,FALSE,FALSE,Directional (positive)
+H4 (Agreeableness → TravelIntent),SPEARMAN,0.078,0.4387,1,FALSE,FALSE,"Exploratory (two-tailed, no directional prediction)"
+H5 (Conscientiousness → TravelIntent),SPEARMAN,0.048,0.638,1,FALSE,FALSE,"Exploratory (two-tailed, no directional prediction)"
+H6 (Neuroticism → TravelIntent),SPEARMAN,-0.054,0.5923,1,FALSE,FALSE,"Exploratory (two-tailed, no directional prediction)"
