@@ -12,14 +12,16 @@ Is self-reported consumption of social media travel content about beach destinat
 
 ## Hypotheses
 
-| # | Hypothesis |
-|---|------------|
-| H1 | Higher social media travel content consumption is positively correlated with intention to visit beach destinations |
-| H2 | Higher openness to experience is positively correlated with intention to visit beach destinations |
-| H3 | Higher extraversion is positively correlated with intention to visit beach destinations |
-| H4 | Higher agreeableness is positively correlated with intention to visit beach destinations |
-| H5 | Higher conscientiousness is positively correlated with intention to visit beach destinations |
-| H6 | Higher neuroticism is negatively correlated with intention to visit beach destinations |
+H1–H3 are directional (positive association predicted from prior literature). H4–H6 are exploratory two-tailed tests — no strong directional prior exists in the travel-personality literature for these traits.
+
+| # | Hypothesis | Type |
+|---|------------|------|
+| H1 | Higher social media travel content consumption is positively correlated with intention to visit beach destinations | Directional (positive) |
+| H2 | Higher openness to experience is positively correlated with intention to visit beach destinations | Directional (positive) |
+| H3 | Higher extraversion is positively correlated with intention to visit beach destinations | Directional (positive) |
+| H4 | Agreeableness is associated with intention to visit beach destinations | Exploratory (two-tailed) |
+| H5 | Conscientiousness is associated with intention to visit beach destinations | Exploratory (two-tailed) |
+| H6 | Neuroticism is associated with intention to visit beach destinations | Exploratory (two-tailed) |
 
 ---
 
@@ -29,7 +31,7 @@ Is self-reported consumption of social media travel content about beach destinat
 
 | Variable | Item | Scale | Notes |
 |----------|------|-------|-------|
-| Q1 | How often do you view travel content on social media? | 1=Never … 5=Very often | Ordinal; SMuse composite |
+| Q1 | How often do you view beach destination content on social media? | 1=Never, 2=Rarely, 3=Sometimes, 4=Often, 5=Very often / Always | Ordinal frequency; SMuse composite |
 | Q2 | I actively engage with travel content on social media | 1–5 | SMuse composite |
 | Q3 | I frequently see social media travel content about beach destinations | 1–5 | SMuse composite |
 | Q4 | I follow travel influencers or travel-related accounts | 1–5 | SMuse composite |
@@ -53,11 +55,11 @@ Is self-reported consumption of social media travel content about beach destinat
 
 | Variable | Item | Categories |
 |----------|------|------------|
-| Q20 | Age | 1=16–18, 2=19–21, 3=22–24, 4=25–27, 5=28+ |
+| Q20 | Age | 1=18–20, 2=21–23, 3=24–26, 4=27–29, 5=30+ |
 | Q21 | Gender | 1=Male, 2=Female, 3=Prefer not to say |
-| Q22 | Occupation | 1=Undergraduate student, 2=Postgraduate student, 3=Employed full-time, 4=Employed part-time, 5=Self-employed, 6=Other |
-| Q23 | Travel frequency (holidays per year) | 1=Never, 2=Once, 3=2–3 times, 4=4 or more |
-| Q24 | Have you ever visited a destination after seeing it on social media? | 1=Yes, 2=No |
+| Q22 | Occupation (first selection if multi-select) | 1=Student, 2=Full-time employed, 3=Part-time employed, 4=Freelancer/self-employed, 5=Unemployed, 6=Prefer not to say |
+| Q23 | Travel frequency (leisure trips per year) | 1=Never, 2=1–2 times, 3=3–5 times, 4=6 or more |
+| Q24 | Have you ever visited a beach destination influenced by content you saw on social media? | 1=Yes, 2=No |
 
 ### Composite Scales
 
@@ -87,7 +89,7 @@ install.packages(c("tidyverse", "psych", "corrplot"))
 
 ### 2. Prepare data
 
-The script expects `data/data.csv` in the project root. A synthetic dummy dataset (n=120) is included for testing. **When real survey data is ready, replace `data/data.csv` with the exported CSV keeping the same column names Q1–Q24.**
+The script expects `data/data.csv` in the project root. The committed file contains the real survey responses (n=109) collected via Microsoft Forms. Likert text responses ("Strongly disagree" → 1, etc.) are recoded numerically before commit; demographics are recoded per the codebook above. To rerun on a refreshed export, replace `data/data.csv` keeping column order Q1–Q24.
 
 ### 3. Run the analysis
 
@@ -118,6 +120,8 @@ Or open `analysis.R` in RStudio and click **Source**.
 ## Analysis Decisions
 
 - **Reverse scoring:** Q11, Q13, Q15, Q17, Q19 are negatively-worded BFI-2 items. Reversed with `6 − score` before composites are computed.
-- **Normality:** Shapiro-Wilk on each composite. If either variable in a pair is non-normal (p < .05), Spearman's rho is used; otherwise Pearson's r. With Likert-scale composites, Spearman is typical.
-- **Reliability:** Cronbach's α reported per composite. Threshold α > 0.70. 2-item scales may fall below this; flag and interpret accordingly.
-- **Dummy data:** Synthetic data generated with `data/generate_data.R` (seed=42). H1 r≈.47, H2 r≈.45, H3 r≈.17 (borderline), H4–H6 non-significant. Replace with real data before drawing conclusions.
+- **Correlation method (Spearman throughout):** All six hypothesis tests use Spearman's rho. Composites are means of ordinal Likert items, so the resulting scale is at best interval-like and parametric assumptions are not guaranteed even when Shapiro-Wilk does not reject normality. Spearman is the standard recommendation for Likert-derived composites (Field, 2018). Using a single consistent method also avoids post-hoc method-switching that inflates Type I error. Shapiro-Wilk results are reported in the script output for transparency only and do **not** drive method selection.
+- **Multiple comparisons (Holm correction):** Six simultaneous tests are conducted (H1–H6). Holm's sequential Bonferroni correction is applied to control the family-wise error rate. Both raw and Holm-adjusted p-values are reported in `outputs/hypothesis_results.csv`.
+- **Reliability — multi-item scales:** Cronbach's α for SMuse (4 items) and TravelIntent (5 items). Threshold α > 0.70.
+- **Reliability — 2-item BFI scales:** Spearman-Brown (SB) coefficient is used instead of α for the five 2-item Big Five composites. SB = (2·r) / (1 + r), where r is the inter-item Pearson correlation. Threshold SB > 0.70. Note that α is mathematically identical to SB for 2-item scales only when items have equal variance, which is not guaranteed; SB is the more appropriate measure (Eisinga, Grotenhuis, & Pelzer, 2013).
+- **Missing data:** Composites are set to NA if a respondent has more than one missing item in the underlying scale (rather than imputing from partial items).
