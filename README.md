@@ -47,7 +47,7 @@ H1–H3 are directional (positive association predicted from prior literature). 
 | Q14 | I see myself as someone who is generally trusting | 1–5 | Agreeableness — normal scoring |
 | Q15 | I see myself as someone who tends to find fault with others | 1–5 | Agreeableness — **REVERSE SCORED** (Q15_r = 6 − Q15) |
 | Q16 | I see myself as someone who does a thorough job | 1–5 | Conscientiousness — normal scoring |
-| Q17 | I see myself as someone who tends to be disorganised | 1–5 | Conscientiousness — **REVERSE SCORED** (Q17_r = 6 − Q17) |
+| Q17 | I see myself as someone who tends to be lazy | 1–5 | Conscientiousness — **REVERSE SCORED** (Q17_r = 6 − Q17) |
 | Q18 | I see myself as someone who worries a lot | 1–5 | Neuroticism — normal scoring |
 | Q19 | I see myself as someone who is relaxed and handles stress well | 1–5 | Neuroticism — **REVERSE SCORED** (Q19_r = 6 − Q19) |
 

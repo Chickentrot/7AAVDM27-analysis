@@ -25,7 +25,7 @@ cat("Data loaded:", nrow(df), "rows,", ncol(df), "columns\n\n")
 #   Q11 — "has few artistic interests"          → low raw = high Openness
 #   Q13 — "is reserved"                         → low raw = high Extraversion
 #   Q15 — "starts arguments with others"        → low raw = high Agreeableness
-#   Q17 — "tends to be disorganised"            → low raw = high Conscientiousness
+#   Q17 — "tends to be lazy"                    → low raw = high Conscientiousness
 #   Q19 — "is relaxed, handles stress well"     → low raw = high Neuroticism
 # Reversing with (6 - score) so all items point in the same direction as the trait.
 df <- df %>%
